@@ -1,0 +1,28 @@
+name: Setup AI Trigger
+
+on: 
+ workflow_dispatch:
+  inputs:
+    repo_name:
+     description: "Repo name"
+     required: true
+    ci_workflow_name:
+     description: "CI workflow name"
+     required: true
+    ci_file_name:
+     description: "CI file name"
+     required: true
+
+jobs:
+ setup:
+   runs-on: self-hosted
+
+   steps:
+     - name: Clone central repo
+       env:
+         GH_TOKEN: ${{ secrets.
+     
+       
+
+     
+     

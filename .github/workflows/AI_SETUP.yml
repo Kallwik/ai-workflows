@@ -24,7 +24,7 @@ jobs:
        env:
          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
        run: |
-          REPO="cvs-health-pcw-source-code/${{ github.event.inputs.repo_name }}
+          REPO="Kallwik/${{ github.event.inputs.repo_name }}
           git clean https://x-access-token:$GH_TOKEN@github.com/$REPO.git repo
 
      - name: Copy template 

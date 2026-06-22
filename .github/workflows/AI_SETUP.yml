@@ -60,5 +60,5 @@ jobs:
          git add .github/workflows/ai-triggr.yml
          git commit -m "Add AI Trigger Workflow" || echo "no changes"
 
-         git push https://x-access-token:$GH_TOKEN@github.com/cvs-health-pcw-source-code/${{ github.event.inputs.repo_name}}.git
+         git push https://x-access-token:$GH_TOKEN@github.com/Kallwik/${{ github.event.inputs.repo_name}}.git
          

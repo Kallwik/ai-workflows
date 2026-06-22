@@ -1,28 +1,60 @@
-name: Setup AI Trigger
+name: AI fix pipline
 
 on: 
- workflow_dispatch:
+ workflow_call:
   inputs:
-    repo_name:
-     description: "Repo name"
+    error_log:
      required: true
-    ci_workflow_name:
-     description: "CI workflow name"
+     type: string
+    branch_name: 
      required: true
+     type: string
     ci_file_name:
-     description: "CI file name"
+     required: true
+     type: string
+  secrets:
+    GCP_PCW_TOKEN:
      required: true
 
+permissions: 
+ contents: write
+
 jobs:
- setup:
+  process-error:
    runs-on: self-hosted
 
    steps:
-     - name: Clone central repo
-       env:
-         GH_TOKEN: ${{ secrets.
-     
-       
+     - name: Checkout repo
+       uses: actions/checkout@v4
+       with:
+         persist-credentials: false
 
-     
+     - name: Prepare AI_FIX branch
+       env:
+         GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
+         SOURCE_BRANCH: ${{ inputs.branch_name }}
+       run: |
+         git config user.name "AI_Bot"
+         git config user.email "ai@bot.com"
+
+         BRANCH="AI_FIX"
+         REPO="${{ github.event.repository.full_name }}
+
+         git remote set-url origin hhtps://x-access-token:$GH_TOKEN@github.com/$REPO.git
+         git fetch origin 
+
+         git checkout -B temp_branch origin/$SOURCE_BRANCH
+
+         if git ls-remote --exit-code --heads origin $BRANCH; then
+            git checkout $BRANCH
+            git pull origin $BRANCH
+            git merge temp_branch || echo "merge conflict ign ored"
+         else
+            git checkout -b $BRANCH temp_branch 
+            echo "Created AI_FIX locally "
+         fi
+         
+     - name: Configure GCP
+       run: gcloud config set project gcpproject-490711
+
      

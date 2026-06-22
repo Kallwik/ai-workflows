@@ -56,5 +56,51 @@ jobs:
          
      - name: Configure GCP
        run: gcloud config set project gcpproject-490711
-
+       
+     - name: Setup Python
+       uses: actions/setup-python@v5
+       with:
+          python-version: "3.11"
+     - run: pip install google-cloud-aiplatfrom       
      
+     # ✅ ANALYZE ERROR
+     - name: Analyze CI Error (RAG)
+       env:
+         ERROR_LOG: ${{ inputs.error_log }}
+       run: |
+         cat > analyze.py <<'PY'
+         import os
+         import vertexai
+         from vertexai.preview import rag
+         from vertexai.generative_models import GenerativeModel, Tool
+
+         vertexai.init(project="gcpproject-490711", location="us-central1")     
+         CORPUS = "projects/gcpproject-490711/locations/asia-southeast1/ragCorpora/6917529027641081856"
+
+         tool = Tool.from_retrieval(
+             retrieval=rag.Retrieval(
+                 source=rag.VertexRagStore(
+                     rag_resources=[rag.RagResource(rag_corpus=CORPUS)]
+                 )
+             )
+         )
+         model = GenerativeModel("gemini-2.5-flash", tools=[tool])
+
+         error = os.environ.get("ERROR_LOG", "")[:8000]
+         
+         prompt = f"""
+         You are a CI debugging expert.
+         Use RAG knowledge to explain the root cause.
+         
+         ERROR:
+         {error}
+         """
+         
+         res = model.generate_content(prompt)
+         
+         open("analysis.txt", "w").write(res.text)
+         PY
+         
+         python analyze.py
+         
+      

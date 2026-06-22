@@ -46,7 +46,7 @@ jobs:
   call-ai-fix:
     needs: prepare-error
 
-    uses: cvs-health-pcw-
+    uses: Kallwik/ai-workflows/.github/workflows/AI.yml@main
 
     with:
       error_log: ${{ needs.prepare-error.outputs.error_logs }}

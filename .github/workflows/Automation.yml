@@ -76,31 +76,158 @@ jobs:
 
          vertexai.init(project="gcpproject-490711", location="us-central1")     
          CORPUS = "projects/gcpproject-490711/locations/asia-southeast1/ragCorpora/6917529027641081856"
-
-         tool = Tool.from_retrieval(
-             retrieval=rag.Retrieval(
+         retrieval=rag.Retrieval(
                  source=rag.VertexRagStore(
                      rag_resources=[rag.RagResource(rag_corpus=CORPUS)]
                  )
              )
+           tool = Tool.from_retrieval(retrieval=retrieval)
+           
+           model = GenerativeModel("gemini-2.5-flash", tools=[tool])
+           
+           error = os.environ.get("ERROR_LOG", "") [:8000]
+           
+           print("ERROR length:", len(error))
+           
+           prompt = f"""
+           You are a CI debugging expert
+           
+           IMPORTANT:
+           - You MUST use retrived knowledge from RAG corpus
+           - Thr corpus contains CI workflow, parameters, and templates
+           - Mention what you retrieved and how it helped
+           
+           ERROR:
+           {error}
+           """
+           
+           print("Running analysis...")
+           
+           res = model.generate_content(prompt)
+           
+           print("\n REPOSNSE:\n", res.txt)
+           
+           open("analysis.txt", "w").write(res.txt)
+           PY
+           python analyze.py
+         
+     - name: GENERATE AI FIX
+       env:
+         CI_FILE: ${{ inputs.ci_file_name }}
+       run: |
+         cat > fix.py << 'PY'
+         import os, re, sys
+         import vertexai
+         from vertexai.preview import rag
+         from vertexai.generative_models import GenerativeModel, Tool
+     
+         vertexai.init(project="gcpproject-490711", location="us-central1")
+     
+         ci_file = os.environ["CI_FILE"]
+         path = f".github/workflows/{ci_file}
+     
+         print(" CI file:", path)
+     
+         if not os.path.exists(path):
+            print("File not found")
+            sys.exit(1)
+         
+         current_ci = open(path).read()   
+         analysis = open("analysis.txt").read() if os.path.exists("analysis.txt") else ""
+     
+         CORPUS = "project/gcpproject-490711/location/asia-southeast/ragCorpus/6917529027641081856"
+     
+         print(" Corpus:", CORPUS)
+     
+         retrieval = rag.Retrieval
+             source=rag.VertexRagStore(
+                  rag_resources=[rag.RagResource(rag_corpus=CORPUS)]
+             )     
          )
-         model = GenerativeModel("gemini-2.5-flash", tools=[tool])
-
-         error = os.environ.get("ERROR_LOG", "")[:8000]
-         
+     
+         tool = Tool.from_retrieval(retrieval=retrieval)
+     
+         model = GenerativeModel(gemini-2.5-flash", tools=[tool])
+     
          prompt = f"""
-         You are a CI debugging expert.
-         Use RAG knowledge to explain the root cause.
-         
-         ERROR:
-         {error}
+         You are a CI workflow fixer.
+     
+         ======================================
+         CRITICAL INSTRUCTION (MANDATORY)
+         ======================================
+     
+         Before generating the fix:
+         1. You must retrive and read the file named "rules.txt" from the RAG corpus.
+         2. Treat rules.txt as a strict VALIDATION SCHEMA.
+         3. You MUST apply ALL the rules from rules.txt.
+     
+         ======================================
+         CONSTRAINT MODE
+         ======================================
+         - If parameter is not allowed -> remove it
+         - If uncretain -> DO NOT include it
+         - NEVER include:
+           - secret parameters
+           - artifact credentials
+           - internal action inputs
+     
+         =========================================
+         WORKFLOW RULES
+         =========================================
+     
+         - If using reusable workflow
+           -> DO NOT include runs-on
+           -> DO NOT include steps
+         - Preserve structure
+         - Fix only the broken parts
+     
+         ===========================================
+     
+         FORMAT:
+     
+         ---FIXED_WORKFLOW---
+         <YAML>
+         ---END_FIXED_WORKFLOW---
+     
+         ---COMMIT_MESSAGE---
+         <MSG>
+         ---END_COMMIT_MESSAGE---
+     
+         Current CI:
+         {current_ci}
+     
+         ANALYSIS:
+         {analysis}
          """
-         
-         res = model.generate_content(prompt)
-         
-         open("analysis.txt", "w").write(res.text)
+     
+         print("Generating fix")
+     
+         reponse = model.generate_content(pronmpt)
+         text = response.text.strip()
+     
+         print("\n RAW OUTPUT \n", text)
+     
+         wf = re.search(r"---FIXED_WORKFLOW---(.#?)---END_FIXED_WORKFLOW---", text, re.S)
+         msg = re.search(r"---COMMIT_MESSAGE---(.#?)---END_COMMIT_MESSAGE---", text, re.S)
+     
+         if not wf or not msg:
+            print("Invaild output from AI")
+            sys.exit(1)
+                
+         fixed_yaml = wf.group(1).strip()
+     
+         open(path, "w").write(fixed_yaml)
+         open("commit.txt", "w").write(msg.group(1).strip())
+     
+         print("Fix applied seccessfully")
          PY
-         
-         python analyze.py
-         
-      
+     
+         python fix.py
+     
+     - name: Commit and Push
+       env:
+         GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
+       run: |
+          git add .github/workflows/*
+          git commit -F commit.txt || echo "no changes"
+          git push origin AI_FIX                

@@ -39,9 +39,8 @@ jobs:
         run: |
           mkdir -p repo/.github/workflows
 
-          cp \
-            central/.github/workflows/ai-trigger.yml \
-            repo/.github/workflows/ai-trigger.yml
+          cp central/.github/workflows/AI_TRIGGER.yml \
+          repo/.github/workflows/AI_TRIGGER.yml
 
       - name: Replace placeholders
         run: |

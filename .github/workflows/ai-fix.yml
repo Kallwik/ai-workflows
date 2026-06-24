@@ -33,18 +33,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
           SOURCE_BRANCH: ${{ inputs.branch_name }}
+          REPO: ${{ github.event.repository.full_name }}
         run: |
           git config user.name "AI_Bot"
           git config user.email "ai@bot.com"
-
+      
           BRANCH="AI_FIX"
-          REPO="${{ github.event.repository.full_name }}"  # FIX: added closing quote
-
-          git remote set-url origin https://x-access-token:$GH_TOKEN@github.com/$REPO.git  # FIX: hhtps -> https
+      
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
           git fetch origin
-
+      
           git checkout -B temp_branch origin/$SOURCE_BRANCH
-
+      
           if git ls-remote --exit-code --heads origin $BRANCH; then
             git checkout $BRANCH
             git pull origin $BRANCH
@@ -53,7 +53,7 @@ jobs:
             git checkout -b $BRANCH temp_branch
             echo "Created AI_FIX locally"
           fi
-
+          
       - name: Configure GCP
         run: gcloud config set project gcpproject-490711
 
@@ -232,7 +232,9 @@ jobs:
       - name: Commit and Push
         env:
           GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
+          REPO: ${{ github.event.repository.full_name }}
         run: |
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
           git add .github/workflows/*
           git commit -F commit.txt || echo "no changes"
           git push origin AI_FIX

@@ -1,10 +1,10 @@
-name: Setup AI trigger
+name: Setup AI Trigger
 
 on:
   workflow_dispatch:
     inputs:
       repo_name:
-        description: "repo name"
+        description: "Repository name"
         required: true
 
       ci_workflow_name:
@@ -12,7 +12,7 @@ on:
         required: true
 
       ci_file_name:
-        description: "ci file name"
+        description: "CI file name"
         required: true
 
 jobs:
@@ -20,31 +20,46 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # Checkout THIS repo (central repo)
       - name: Checkout central repo
         uses: actions/checkout@v4
         with:
           path: central
 
+      # Clone target repository
       - name: Clone target repo
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           REPO="Kallwik/${{ github.event.inputs.repo_name }}"
-          
+
+          echo "Cloning $REPO"
+
           git clone \
             https://x-access-token:$GH_TOKEN@github.com/$REPO.git \
             repo
 
+      # Verify template exists
+      - name: Verify template file
+        run: |
+          echo "Central repo contents:"
+          ls -R central/.github/workflows
+
+      # Copy AI trigger workflow template
       - name: Copy template
         run: |
           mkdir -p repo/.github/workflows
 
-          cp central/.github/workflows/AI_TRIGGER.yml \
-          repo/.github/workflows/AI_TRIGGER.yml
+          cp \
+            central/.github/workflows/AI_TRIGGER.yml \
+            repo/.github/workflows/ai-trigger.yml
 
+      # Replace placeholders
       - name: Replace placeholders
         run: |
           FILE="repo/.github/workflows/ai-trigger.yml"
+
+          echo "Updating file: $FILE"
 
           CI_NAME="${{ github.event.inputs.ci_workflow_name }}"
           CI_FILE="${{ github.event.inputs.ci_file_name }}"
@@ -55,12 +70,14 @@ jobs:
           sed -i "s/__CI_WORKFLOW_NAME__/$SAFE_NAME/g" "$FILE"
           sed -i "s/__CI_FILE_NAME__/$SAFE_FILE/g" "$FILE"
 
+      # Verify generated workflow
       - name: Verify generated workflow
         run: |
           echo "============================="
           cat repo/.github/workflows/ai-trigger.yml
           echo "============================="
 
+      # Commit and push changes
       - name: Commit and push
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
@@ -72,8 +89,8 @@ jobs:
 
           git add .github/workflows/ai-trigger.yml
 
-          git commit -m "Add AI Trigger Workflow" || echo "No changes"
+          git commit -m "Add AI Trigger Workflow" || echo "No changes to commit"
 
           git push \
             https://x-access-token:$GH_TOKEN@github.com/Kallwik/${{ github.event.inputs.repo_name }}.git \
-            HEAD
+            HEAD:main

@@ -28,6 +28,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Debug token
+        env:
+          GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
+        run: |
+          echo "Token length: ${#GH_TOKEN}"
+          curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/user    
 
       - name: Prepare AI_FIX branch
         env:

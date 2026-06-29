@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   prepare-error:
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     outputs:
       error_logs: ${{ steps.capture.outputs.error }}
@@ -43,7 +43,7 @@ jobs:
 
   call-ai-fix:
     needs: prepare-error
-    uses: Kallwik/ai-workflows/.github/workflows/AI.yml@main
+    uses: Kallwik/ai-workflows/.github/workflows/ai-fix.yml@main
     with:
       error_log: ${{ needs.prepare-error.outputs.error_logs }}
       branch_name: ${{ github.event.workflow_run.head_branch }}

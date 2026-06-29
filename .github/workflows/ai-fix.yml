@@ -18,6 +18,10 @@ on:
 
 permissions:
   contents: write
+  # FIX: 'id-token: write' is required for Workload Identity Federation with GCP.
+  # If you are using a service account JSON key instead (stored as a secret),
+  # you can remove this permission and replace the auth step below accordingly.
+  id-token: write
 
 jobs:
   process-error:
@@ -28,6 +32,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
       - name: Debug token
         env:
           GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
@@ -35,7 +40,7 @@ jobs:
           echo "Token length: ${#GH_TOKEN}"
           curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/user    
+            https://api.github.com/user
 
       - name: Prepare AI_FIX branch
         env:
@@ -45,14 +50,14 @@ jobs:
         run: |
           git config user.name "AI_Bot"
           git config user.email "ai@bot.com"
-      
+
           BRANCH="AI_FIX"
-      
+
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
           git fetch origin
-      
-          git checkout -B temp_branch origin/$SOURCE_BRANCH
-      
+
+          git checkout -B temp_branch "origin/${SOURCE_BRANCH}"
+
           if git ls-remote --exit-code --heads origin $BRANCH; then
             git checkout $BRANCH
             git pull origin $BRANCH
@@ -61,7 +66,27 @@ jobs:
             git checkout -b $BRANCH temp_branch
             echo "Created AI_FIX locally"
           fi
-          
+
+      # FIX: Added GCP authentication step.
+      # Vertex AI SDK calls require valid Application Default Credentials.
+      # Without this, all Python Vertex AI calls fail with a 401/403.
+      #
+      # OPTION A (recommended): Workload Identity Federation
+      #   Requires secrets: GCP_WIF_PROVIDER, GCP_SA_EMAIL
+      #   Set id-token: write permission above (already done).
+      #
+      # OPTION B: Service Account JSON key
+      #   Replace this step with:
+      #     - uses: google-github-actions/auth@v2
+      #       with:
+      #         credentials_json: ${{ secrets.GCP_SA_KEY }}
+      #   And remove id-token: write permission.
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
       - name: Configure GCP
         run: gcloud config set project gcpproject-490711
 
@@ -69,7 +94,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install google-cloud-aiplatform  # FIX: typo aiplatfrom -> aiplatform
+
+      - run: pip install google-cloud-aiplatform
 
       # ANALYZE ERROR
       - name: Analyze CI Error (RAG)
@@ -116,9 +142,9 @@ jobs:
 
           res = model.generate_content(prompt)
 
-          print("\nRESPONSE:\n", res.text)  # FIX: res.txt -> res.text
+          print("\nRESPONSE:\n", res.text)
 
-          open("analysis.txt", "w").write(res.text)  # FIX: res.txt -> res.text
+          open("analysis.txt", "w").write(res.text)
           PY
           python analyze.py
 
@@ -135,7 +161,7 @@ jobs:
           vertexai.init(project="gcpproject-490711", location="us-central1")
 
           ci_file = os.environ["CI_FILE"]
-          path = f".github/workflows/{ci_file}"  # FIX: added closing quote on f-string
+          path = f".github/workflows/{ci_file}"
 
           print("CI file:", path)
 
@@ -146,12 +172,11 @@ jobs:
           current_ci = open(path).read()
           analysis = open("analysis.txt").read() if os.path.exists("analysis.txt") else ""
 
-          # FIX: corrected corpus path (projects/locations/ragCorpora)
           CORPUS = "projects/gcpproject-490711/locations/asia-southeast1/ragCorpora/6917529027641081856"
 
           print("Corpus:", CORPUS)
 
-          retrieval = rag.Retrieval(  # FIX: was missing opening parenthesis
+          retrieval = rag.Retrieval(
               source=rag.VertexRagStore(
                   rag_resources=[rag.RagResource(rag_corpus=CORPUS)]
               )
@@ -159,7 +184,7 @@ jobs:
 
           tool = Tool.from_retrieval(retrieval=retrieval)
 
-          model = GenerativeModel("gemini-2.5-flash", tools=[tool])  # FIX: added missing opening quote
+          model = GenerativeModel("gemini-2.5-flash", tools=[tool])
 
           prompt = f"""
           You are a CI workflow fixer.
@@ -214,17 +239,16 @@ jobs:
 
           print("Generating fix...")
 
-          response = model.generate_content(prompt)  # FIX: typo reponse -> response
+          response = model.generate_content(prompt)
           text = response.text.strip()
 
           print("\nRAW OUTPUT\n", text)
 
-          # FIX: regex pattern (.#?) -> ([\s\S]+?) to correctly capture multiline content
           wf = re.search(r"---FIXED_WORKFLOW---([\s\S]+?)---END_FIXED_WORKFLOW---", text)
           msg = re.search(r"---COMMIT_MESSAGE---([\s\S]+?)---END_COMMIT_MESSAGE---", text)
 
           if not wf or not msg:
-              print("Invalid output from AI")  # FIX: typo Invaild -> Invalid
+              print("Invalid output from AI")
               sys.exit(1)
 
           fixed_yaml = wf.group(1).strip()
@@ -232,7 +256,7 @@ jobs:
           open(path, "w").write(fixed_yaml)
           open("commit.txt", "w").write(msg.group(1).strip())
 
-          print("Fix applied successfully")  # FIX: typo seccessfully -> successfully
+          print("Fix applied successfully")
           PY
 
           python fix.py

@@ -12,6 +12,9 @@ on:
       ci_file_name:
         required: true
         type: string
+      repo_full_name:
+        required: true
+        type: string
     secrets:
       GCP_PCW_TOKEN:
         required: true
@@ -26,32 +29,40 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # FIX: Pass token directly to checkout so git credential store is
+      # populated automatically. No manual git remote set-url needed in
+      # any step — this is the recommended pattern for cross-repo PAT auth.
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          token: ${{ secrets.GCP_PCW_TOKEN }}
+          repository: ${{ inputs.repo_full_name }}
 
       - name: Debug token
         env:
           GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
         run: |
           echo "Token length: ${#GH_TOKEN}"
-          curl -s -o /dev/null -w "%{http_code}" \
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/user
+            https://api.github.com/user)
+          echo "GitHub API status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "ERROR: Token is invalid or expired (HTTP $STATUS)"
+            exit 1
+          fi
 
       - name: Prepare AI_FIX branch
         env:
-          GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
           SOURCE_BRANCH: ${{ inputs.branch_name }}
-          REPO: ${{ github.event.repository.full_name }}
+          REPO: ${{ inputs.repo_full_name }}
         run: |
           git config user.name "AI_Bot"
           git config user.email "ai@bot.com"
 
           BRANCH="AI_FIX"
 
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          # credentials already stored by actions/checkout — no set-url needed
           git fetch origin
 
           git checkout -B temp_branch "origin/${SOURCE_BRANCH}"
@@ -232,11 +243,8 @@ jobs:
           python fix.py
 
       - name: Commit and Push
-        env:
-          GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
-          REPO: ${{ github.event.repository.full_name }}
         run: |
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          # credentials already stored by actions/checkout — push works directly
           git add .github/workflows/*
           git commit -F commit.txt || echo "no changes"
           git push origin AI_FIX

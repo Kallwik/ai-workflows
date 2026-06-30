@@ -16,7 +16,7 @@ on:
         required: true
         type: string
     secrets:
-      GCP_PCW_TOKEN:
+      PAT_TOKEN:
         required: true
       GCP_SA_KEY:
         required: true
@@ -29,16 +29,14 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # Use default checkout — no token: or repository: override.
-      # In a reusable workflow, github.repository = caller repo (Test-repo)
-      # and GITHUB_TOKEN already has contents:write for it.
-      # PAT is only needed at push time to allow writing .github/workflows/ files.
+      # Default checkout — no token: or repository: override needed.
+      # github.repository = caller repo, GITHUB_TOKEN has contents:write for it.
       - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Debug token
         env:
-          GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           echo "Token length: ${#GH_TOKEN}"
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -46,7 +44,8 @@ jobs:
             https://api.github.com/user)
           echo "GitHub API status: $STATUS"
           if [ "$STATUS" != "200" ]; then
-            echo "ERROR: PAT is invalid or expired (HTTP $STATUS). Check PAT_TOKEN secret in Test-repo."
+            echo "ERROR: PAT_TOKEN is invalid, expired, or not visible to this repo."
+            echo "Check Kallwik org secrets at: github.com/organizations/Kallwik/settings/secrets/actions"
             exit 1
           fi
 
@@ -59,10 +58,7 @@ jobs:
 
           BRANCH="AI_FIX"
 
-          # GITHUB_TOKEN credentials from checkout are sufficient for fetch/checkout.
-          # No git remote set-url needed here.
           git fetch origin
-
           git checkout -B temp_branch "origin/${SOURCE_BRANCH}"
 
           if git ls-remote --exit-code --heads origin $BRANCH; then
@@ -242,11 +238,11 @@ jobs:
 
       - name: Commit and Push
         env:
-          GH_TOKEN: ${{ secrets.GCP_PCW_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
           REPO: ${{ inputs.repo_full_name }}
         run: |
           # PAT required here: GITHUB_TOKEN cannot push to .github/workflows/
-          # without 'workflow' scope. PAT with repo+workflow scope bypasses this.
+          # without 'workflow' scope.
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
           git add .github/workflows/*
           git commit -F commit.txt || echo "no changes"

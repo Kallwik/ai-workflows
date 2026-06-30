@@ -18,9 +18,12 @@ on:
     secrets:
       PAT_TOKEN:
         required: true
+      GCP_SA_KEY:
+        required: true
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   process-error:
@@ -29,7 +32,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
 
       - name: Prepare AI_FIX branch
         env:
@@ -52,16 +54,38 @@ jobs:
             echo "Created AI_FIX locally"
           fi
 
+      # =========================
+      # GCP AUTH
+      # =========================
 
-      - name: Configure GCP
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure GCP Project
         run: gcloud config set project gcpproject-490711
+
+      # =========================
+      # PYTHON
+      # =========================
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - run: pip install google-cloud-aiplatform
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install google-cloud-aiplatform
+
+      # =========================
+      # ANALYZE ERROR
+      # =========================
 
       - name: Analyze CI Error (RAG)
         env:
@@ -73,20 +97,41 @@ jobs:
           from vertexai.preview import rag
           from vertexai.generative_models import GenerativeModel, Tool
 
-          vertexai.init(project="gcpproject-490711", location="us-central1")
+          PROJECT_ID = "gcpproject-490711"
+          LOCATION = "asia-southeast1"
 
-          CORPUS = "projects/gcpproject-490711/locations/asia-southeast1/ragCorpora/6917529027641081856"
+          vertexai.init(
+              project=PROJECT_ID,
+              location=LOCATION
+          )
+
+          CORPUS = (
+              "projects/gcpproject-490711/"
+              "locations/asia-southeast1/"
+              "ragCorpora/6917529027641081856"
+          )
+
+          print("Using corpus:", CORPUS)
 
           retrieval = rag.Retrieval(
               source=rag.VertexRagStore(
-                  rag_resources=[rag.RagResource(rag_corpus=CORPUS)]
+                  rag_resources=[
+                      rag.RagResource(
+                          rag_corpus=CORPUS
+                      )
+                  ]
               )
           )
 
           tool = Tool.from_retrieval(retrieval=retrieval)
-          model = GenerativeModel("gemini-2.5-flash", tools=[tool])
+
+          model = GenerativeModel(
+              "gemini-2.5-flash",
+              tools=[tool]
+          )
 
           error = os.environ.get("ERROR_LOG", "")[:8000]
+
           print("ERROR length:", len(error))
 
           prompt = f"""
@@ -102,47 +147,87 @@ jobs:
           """
 
           print("Running analysis...")
-          res = model.generate_content(prompt)
-          print("\nRESPONSE:\n", res.text)
-          open("analysis.txt", "w").write(res.text)
+
+          response = model.generate_content(prompt)
+
+          print("\nRESPONSE:\n")
+          print(response.text)
+
+          with open("analysis.txt", "w") as f:
+              f.write(response.text)
           PY
+
           python analyze.py
+
+      # =========================
+      # GENERATE FIX
+      # =========================
 
       - name: Generate AI Fix
         env:
           CI_FILE: ${{ inputs.ci_file_name }}
         run: |
           cat > fix.py <<'PY'
-          import os, re, sys
+          import os
+          import re
+          import sys
           import vertexai
-          from vertexai.preview import rag
-          from vertexai.generative_models import GenerativeModel, Tool
 
-          vertexai.init(project="gcpproject-490711", location="us-central1")
+          from vertexai.preview import rag
+          from vertexai.generative_models import (
+              GenerativeModel,
+              Tool
+          )
+
+          PROJECT_ID = "gcpproject-490711"
+          LOCATION = "asia-southeast1"
+
+          vertexai.init(
+              project=PROJECT_ID,
+              location=LOCATION
+          )
 
           ci_file = os.environ["CI_FILE"]
+
           path = f".github/workflows/{ci_file}"
 
           print("CI file:", path)
 
           if not os.path.exists(path):
-              print("File not found")
+              print("Workflow file not found")
               sys.exit(1)
 
-          current_ci = open(path).read()
-          analysis = open("analysis.txt").read() if os.path.exists("analysis.txt") else ""
+          with open(path, "r") as f:
+              current_ci = f.read()
 
-          CORPUS = "projects/gcpproject-490711/locations/asia-southeast1/ragCorpora/6917529027641081856"
-          print("Corpus:", CORPUS)
+          analysis = ""
+
+          if os.path.exists("analysis.txt"):
+              with open("analysis.txt", "r") as f:
+                  analysis = f.read()
+
+          CORPUS = (
+              "projects/gcpproject-490711/"
+              "locations/asia-southeast1/"
+              "ragCorpora/6917529027641081856"
+          )
 
           retrieval = rag.Retrieval(
               source=rag.VertexRagStore(
-                  rag_resources=[rag.RagResource(rag_corpus=CORPUS)]
+                  rag_resources=[
+                      rag.RagResource(
+                          rag_corpus=CORPUS
+                      )
+                  ]
               )
           )
 
           tool = Tool.from_retrieval(retrieval=retrieval)
-          model = GenerativeModel("gemini-2.5-flash", tools=[tool])
+
+          model = GenerativeModel(
+              "gemini-2.5-flash",
+              tools=[tool]
+          )
 
           prompt = f"""
           You are a CI workflow fixer.
@@ -152,13 +237,14 @@ jobs:
           ======================================
 
           Before generating the fix:
-          1. You must retrieve and read the file named "rules.txt" from the RAG corpus.
-          2. Treat rules.txt as a strict VALIDATION SCHEMA.
-          3. You MUST apply ALL the rules from rules.txt.
+          1. Retrieve and read "rules.txt" from RAG corpus
+          2. Treat rules.txt as strict schema validation
+          3. Apply ALL rules from rules.txt
 
           ======================================
           CONSTRAINT MODE
           ======================================
+
           - If parameter is not allowed -> remove it
           - If uncertain -> DO NOT include it
           - NEVER include:
@@ -166,62 +252,95 @@ jobs:
             - artifact credentials
             - internal action inputs
 
-          =========================================
+          ======================================
           WORKFLOW RULES
-          =========================================
+          ======================================
 
-          - If using reusable workflow
-            -> DO NOT include runs-on
-            -> DO NOT include steps
-          - Preserve structure
-          - Fix only the broken parts
+          - If using reusable workflow:
+            - DO NOT include runs-on
+            - DO NOT include steps
 
-          ===========================================
+          - Preserve workflow structure
+          - Fix only broken parts
 
-          FORMAT:
+          ======================================
+          REQUIRED OUTPUT FORMAT
+          ======================================
 
           ---FIXED_WORKFLOW---
           <YAML>
           ---END_FIXED_WORKFLOW---
 
           ---COMMIT_MESSAGE---
-          <MSG>
+          <MESSAGE>
           ---END_COMMIT_MESSAGE---
 
-          Current CI:
+          ======================================
+          CURRENT CI
+          ======================================
+
           {current_ci}
 
-          ANALYSIS:
+          ======================================
+          ANALYSIS
+          ======================================
+
           {analysis}
           """
 
           print("Generating fix...")
-          response = model.generate_content(prompt)
-          text = response.text.strip()
-          print("\nRAW OUTPUT\n", text)
 
-          wf = re.search(r"---FIXED_WORKFLOW---([\s\S]+?)---END_FIXED_WORKFLOW---", text)
-          msg = re.search(r"---COMMIT_MESSAGE---([\s\S]+?)---END_COMMIT_MESSAGE---", text)
+          response = model.generate_content(prompt)
+
+          text = response.text.strip()
+
+          print("\nRAW OUTPUT:\n")
+          print(text)
+
+          wf = re.search(
+              r"---FIXED_WORKFLOW---([\s\S]+?)---END_FIXED_WORKFLOW---",
+              text
+          )
+
+          msg = re.search(
+              r"---COMMIT_MESSAGE---([\s\S]+?)---END_COMMIT_MESSAGE---",
+              text
+          )
 
           if not wf or not msg:
-              print("Invalid output from AI")
+              print("Invalid AI response format")
               sys.exit(1)
 
           fixed_yaml = wf.group(1).strip()
-          open(path, "w").write(fixed_yaml)
-          open("commit.txt", "w").write(msg.group(1).strip())
+          commit_message = msg.group(1).strip()
+
+          with open(path, "w") as f:
+              f.write(fixed_yaml)
+
+          with open("commit.txt", "w") as f:
+              f.write(commit_message)
+
           print("Fix applied successfully")
           PY
+
           python fix.py
+
+      # =========================
+      # COMMIT & PUSH
+      # =========================
 
       - name: Commit and Push
         env:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
           REPO: ${{ inputs.repo_full_name }}
         run: |
-          # PAT required here: GITHUB_TOKEN cannot push to .github/workflows/
-          # without 'workflow' scope.
-          git remote set-url origin "https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git"
+          git remote set-url origin \
+            "https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git"
+
           git add .github/workflows/*
-          git commit -F commit.txt || echo "no changes"
-          git push origin AI_FIX
+
+          git diff --cached --quiet && echo "No changes" && exit 0
+
+          git commit -F commit.txt
+
+          git push origin AI_FIX --force

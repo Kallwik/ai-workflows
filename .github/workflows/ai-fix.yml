@@ -30,20 +30,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Debug token
-        env:
-          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: |
-          echo "Token length: ${#PAT_TOKEN}"
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $PAT_TOKEN" \
-            https://api.github.com/user)
-          echo "GitHub API status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "ERROR: PAT_TOKEN is invalid, expired, or not visible to this repo."
-            echo "Add it as a repository secret: Settings > Secrets and variables > Actions"
-            exit 1
-          fi
 
       - name: Prepare AI_FIX branch
         env:

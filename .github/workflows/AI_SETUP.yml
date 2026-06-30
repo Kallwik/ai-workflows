@@ -30,12 +30,14 @@ jobs:
           path: central
 
       - name: Clone target repo
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           set -e
           REPO="Kallwik/${{ github.event.inputs.repo_name }}"
           echo "Cloning repository: $REPO"
           git clone \
-            "https://x-access-token:${secrets.PAT_TOKEN}@github.com/${REPO}.git" \
+            "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
             repo
 
       - name: Verify template file
@@ -71,6 +73,8 @@ jobs:
           echo "===================================="
 
       - name: Commit and push workflow
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           set -e
           cd repo
@@ -79,12 +83,9 @@ jobs:
           git add .github/workflows/ai-trigger.yml
           git commit -m "Add AI Trigger Workflow" || echo "No changes to commit"
           git push \
-            "https://x-access-token:${secrets.PAT_TOKEN}@github.com/Kallwik/${{ github.event.inputs.repo_name }}.git" \
+            "https://x-access-token:${GH_TOKEN}@github.com/Kallwik/${{ github.event.inputs.repo_name }}.git" \
             HEAD:main
 
-      # NOTE: No secret-injection step needed anymore.
-      # PAT_TOKEN and GCP_SA_KEY are set once as Kallwik ORGANIZATION
-      # secrets (Settings > Secrets and variables > Actions, at the org
-      # level), scoped to all repositories. Every repo in Kallwik —
-      # including newly onboarded ones — automatically has access to
-      # both secrets with zero manual setup per repo.
+      # No secret-injection step needed — PAT_TOKEN and GCP_SA_KEY are
+      # Kallwik organization secrets, automatically available to every
+      # repo in the org, including newly onboarded ones.

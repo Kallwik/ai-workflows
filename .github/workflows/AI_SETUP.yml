@@ -31,7 +31,7 @@ jobs:
 
       - name: Clone target repo
         env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           set -e
           REPO="Kallwik/${{ github.event.inputs.repo_name }}"
@@ -74,7 +74,7 @@ jobs:
 
       - name: Commit and push workflow
         env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           set -e
           cd repo
@@ -86,6 +86,9 @@ jobs:
             "https://x-access-token:${GH_TOKEN}@github.com/Kallwik/${{ github.event.inputs.repo_name }}.git" \
             HEAD:main
 
-      # No secret-injection step needed — PAT_TOKEN and GCP_SA_KEY are
-      # Kallwik organization secrets, automatically available to every
-      # repo in the org, including newly onboarded ones.
+      # NOTE: This workflow itself needs a GH_TOKEN repository secret in
+      # ai-workflows to clone/push to target repos. Each onboarded repo
+      # (e.g. Test-repo) separately needs its own GH_TOKEN and GCP_SA_KEY
+      # repository secrets added manually — Settings > Secrets and
+      # variables > Actions — since those are consumed by ai-trigger.yml
+      # and AI.yml when this repo's CI fails, not by this setup workflow.

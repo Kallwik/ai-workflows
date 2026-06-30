@@ -66,17 +66,7 @@ jobs:
             echo "Created AI_FIX locally"
           fi
 
-      - name: Debug GCP key
-        env:
-          PAT_TOKEN : ${{ secrets.PAT_TOKEN  }}
-        run: |
-          echo "PAT_TOKEN  length: ${#PAT_TOKEN }"
-          if [ -z "$PAT_TOKEN " ]; then
-            echo "ERROR: PAT_TOKEN  is empty or not set."
-            echo "Add it as a repository secret in this repo: Settings > Secrets and variables > Actions"
-            echo "Value must be the full JSON content of the GCP service account key."
-            exit 1
-          fi
+  
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2

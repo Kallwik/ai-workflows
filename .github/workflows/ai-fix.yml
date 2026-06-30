@@ -29,8 +29,6 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # Default checkout — no token: or repository: override needed.
-      # github.repository = caller repo, GITHUB_TOKEN has contents:write for it.
       - name: Checkout repo
         uses: actions/checkout@v4
 
@@ -259,4 +257,3 @@ jobs:
           git add .github/workflows/*
           git commit -F commit.txt || echo "no changes"
           git push origin AI_FIX
-          

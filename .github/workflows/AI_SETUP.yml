@@ -88,7 +88,7 @@ jobs:
 
       # NOTE: This workflow itself needs a PAT_TOKEN repository secret in
       # ai-workflows to clone/push to target repos. Each onboarded repo
-      # (e.g. Test-repo) separately needs its own PAT_TOKEN and GCP_SA_KEY
+      # (e.g. Test-repo) separately needs its own PAT_TOKEN and PAT_TOKEN 
       # repository secrets added manually — Settings > Secrets and
       # variables > Actions — since those are consumed by ai-trigger.yml
       # and AI.yml when this repo's CI fails, not by this setup workflow.

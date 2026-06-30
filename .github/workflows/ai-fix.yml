@@ -16,7 +16,7 @@ on:
         required: true
         type: string
     secrets:
-      PAT_TOKEN:
+      GH_TOKEN:
         required: true
       GCP_SA_KEY:
         required: true
@@ -34,7 +34,7 @@ jobs:
 
       - name: Debug token
         env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           echo "Token length: ${#GH_TOKEN}"
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -42,8 +42,7 @@ jobs:
             https://api.github.com/user)
           echo "GitHub API status: $STATUS"
           if [ "$STATUS" != "200" ]; then
-            echo "ERROR: PAT_TOKEN is invalid, expired, or not visible to this repo."
-            echo "Check Kallwik org secrets at: github.com/organizations/Kallwik/settings/secrets/actions"
+            echo "ERROR: GH_TOKEN is invalid, expired, or not visible to this repo."
             exit 1
           fi
 
@@ -236,7 +235,7 @@ jobs:
 
       - name: Commit and Push
         env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           REPO: ${{ inputs.repo_full_name }}
         run: |
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"

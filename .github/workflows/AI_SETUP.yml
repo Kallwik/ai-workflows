@@ -6,140 +6,75 @@ on:
       repo_name:
         description: "Repository name"
         required: true
-        type: string
+
       ci_workflow_name:
         description: "CI workflow name"
         required: true
-        type: string
+
       ci_file_name:
         description: "CI file name"
         required: true
-        type: string
-
-permissions:
-  contents: write
 
 jobs:
   setup:
     runs-on: ubuntu-22.04
 
     steps:
+      # Checkout THIS repo (central repo)
       - name: Checkout central repo
         uses: actions/checkout@v4
         with:
           path: central
 
+      # Clone target repository
       - name: Clone target repo
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          set -e
           REPO="Kallwik/${{ github.event.inputs.repo_name }}"
-          echo "Cloning repository: $REPO"
+          echo "Cloning $REPO"
           git clone \
-            "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
+            https://x-access-token:$GH_TOKEN@github.com/$REPO.git \
             repo
-
+      # Verify template exists
       - name: Verify template file
         run: |
-          echo "Available workflow templates:"
-          ls -la central/.github/workflows
-
+          echo "Central repo contents:"
+          ls -R central/.github/workflows
+      # Copy AI trigger workflow template
       - name: Copy template
         run: |
-          set -e
           mkdir -p repo/.github/workflows
           cp \
             central/.github/workflows/AI_TRIGGER.yml \
             repo/.github/workflows/ai-trigger.yml
-
+      # Replace placeholders
       - name: Replace placeholders
         run: |
-          set -e
           FILE="repo/.github/workflows/ai-trigger.yml"
+          echo "Updating file: $FILE"
           CI_NAME="${{ github.event.inputs.ci_workflow_name }}"
           CI_FILE="${{ github.event.inputs.ci_file_name }}"
-          echo "Workflow Name: $CI_NAME"
-          echo "CI File Name: $CI_FILE"
           SAFE_NAME=$(printf '%s\n' "$CI_NAME" | sed 's/[\/&]/\\&/g')
           SAFE_FILE=$(printf '%s\n' "$CI_FILE" | sed 's/[\/&]/\\&/g')
           sed -i "s/__CI_WORKFLOW_NAME__/$SAFE_NAME/g" "$FILE"
           sed -i "s/__CI_FILE_NAME__/$SAFE_FILE/g" "$FILE"
-
+      # Verify generated workflow
       - name: Verify generated workflow
         run: |
-          echo "===================================="
+          echo "============================="
           cat repo/.github/workflows/ai-trigger.yml
-          echo "===================================="
-
-      - name: Commit and push workflow
+          echo "============================="
+      # Commit and push changes
+      - name: Commit and push
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          set -e
           cd repo
           git config user.name "AI-Bot"
           git config user.email "ai@bot.com"
           git add .github/workflows/ai-trigger.yml
           git commit -m "Add AI Trigger Workflow" || echo "No changes to commit"
           git push \
-            "https://x-access-token:${GH_TOKEN}@github.com/Kallwik/${{ github.event.inputs.repo_name }}.git" \
+            https://x-access-token:$GH_TOKEN@github.com/Kallwik/${{ github.event.inputs.repo_name }}.git \
             HEAD:main
-
-      # Inject required secrets into the target repo so AI_TRIGGER.yml
-      # can forward them to AI.yml when it runs. Without this step,
-      # secrets.PAT_TOKEN and secrets.GCP_SA_KEY are absent in the target
-      # repo, causing token length 0 and 401 errors in AI.yml.
-      - name: Inject secrets into target repo
-        env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
-          PAT_TOKEN_VALUE: ${{ secrets.PAT_TOKEN }}
-          GCP_SA_KEY_VALUE: ${{ secrets.GCP_SA_KEY }}
-          TARGET_REPO: "Kallwik/${{ github.event.inputs.repo_name }}"
-        run: |
-          set -e
-          pip install PyNaCl --quiet --break-system-packages
-
-          python3 - <<'PY'
-          import os, json, base64, urllib.request, urllib.error
-          from nacl import encoding, public
-
-          token = os.environ["GH_TOKEN"]
-          repo  = os.environ["TARGET_REPO"]
-
-          secrets_to_inject = {
-              "PAT_TOKEN":  os.environ["PAT_TOKEN_VALUE"],
-              "GCP_SA_KEY": os.environ["GCP_SA_KEY_VALUE"],
-          }
-
-          def api(method, path, body=None):
-              url  = f"https://api.github.com{path}"
-              data = json.dumps(body).encode() if body else None
-              req  = urllib.request.Request(url, data=data, method=method)
-              req.add_header("Authorization",        f"Bearer {token}")
-              req.add_header("Accept",               "application/vnd.github+json")
-              req.add_header("X-GitHub-Api-Version", "2022-11-28")
-              if data:
-                  req.add_header("Content-Type", "application/json")
-              with urllib.request.urlopen(req) as r:
-                  return json.loads(r.read())
-
-          # Fetch the repo's Actions public key (needed to encrypt secrets)
-          key_info = api("GET", f"/repos/{repo}/actions/secrets/public-key")
-          key_id   = key_info["key_id"]
-          pub_key  = public.PublicKey(key_info["key"].encode(), encoding.Base64Encoder)
-
-          for name, value in secrets_to_inject.items():
-              if not value:
-                  print(f"WARN: {name} is empty in ai-workflows — skipping")
-                  continue
-              box       = public.SealedBox(pub_key)
-              encrypted = base64.b64encode(box.encrypt(value.encode())).decode()
-              api("PUT", f"/repos/{repo}/actions/secrets/{name}", {
-                  "encrypted_value": encrypted,
-                  "key_id":          key_id,
-              })
-              print(f"Injected: {name}")
-
-          print("Done — all secrets injected into", repo)
-          PY

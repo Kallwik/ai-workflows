@@ -6,75 +6,89 @@ on:
       repo_name:
         description: "Repository name"
         required: true
-
+        type: string
       ci_workflow_name:
         description: "CI workflow name"
         required: true
-
+        type: string
       ci_file_name:
         description: "CI file name"
         required: true
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   setup:
     runs-on: ubuntu-22.04
 
     steps:
-      # Checkout THIS repo (central repo)
       - name: Checkout central repo
         uses: actions/checkout@v4
         with:
           path: central
 
-      # Clone target repository
       - name: Clone target repo
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
+          set -e
           REPO="Kallwik/${{ github.event.inputs.repo_name }}"
-          echo "Cloning $REPO"
+          echo "Cloning repository: $REPO"
           git clone \
-            https://x-access-token:$GH_TOKEN@github.com/$REPO.git \
+            "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
             repo
-      # Verify template exists
+
       - name: Verify template file
         run: |
-          echo "Central repo contents:"
-          ls -R central/.github/workflows
-      # Copy AI trigger workflow template
+          echo "Available workflow templates:"
+          ls -la central/.github/workflows
+
       - name: Copy template
         run: |
+          set -e
           mkdir -p repo/.github/workflows
           cp \
             central/.github/workflows/AI_TRIGGER.yml \
             repo/.github/workflows/ai-trigger.yml
-      # Replace placeholders
+
       - name: Replace placeholders
         run: |
+          set -e
           FILE="repo/.github/workflows/ai-trigger.yml"
-          echo "Updating file: $FILE"
           CI_NAME="${{ github.event.inputs.ci_workflow_name }}"
           CI_FILE="${{ github.event.inputs.ci_file_name }}"
+          echo "Workflow Name: $CI_NAME"
+          echo "CI File Name: $CI_FILE"
           SAFE_NAME=$(printf '%s\n' "$CI_NAME" | sed 's/[\/&]/\\&/g')
           SAFE_FILE=$(printf '%s\n' "$CI_FILE" | sed 's/[\/&]/\\&/g')
           sed -i "s/__CI_WORKFLOW_NAME__/$SAFE_NAME/g" "$FILE"
           sed -i "s/__CI_FILE_NAME__/$SAFE_FILE/g" "$FILE"
-      # Verify generated workflow
+
       - name: Verify generated workflow
         run: |
-          echo "============================="
+          echo "===================================="
           cat repo/.github/workflows/ai-trigger.yml
-          echo "============================="
-      # Commit and push changes
-      - name: Commit and push
+          echo "===================================="
+
+      - name: Commit and push workflow
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
+          set -e
           cd repo
           git config user.name "AI-Bot"
           git config user.email "ai@bot.com"
           git add .github/workflows/ai-trigger.yml
           git commit -m "Add AI Trigger Workflow" || echo "No changes to commit"
           git push \
-            https://x-access-token:$GH_TOKEN@github.com/Kallwik/${{ github.event.inputs.repo_name }}.git \
+            "https://x-access-token:${GH_TOKEN}@github.com/Kallwik/${{ github.event.inputs.repo_name }}.git" \
             HEAD:main
+
+      # NOTE: No secret-injection step needed anymore.
+      # PAT_TOKEN and GCP_SA_KEY are set once as Kallwik ORGANIZATION
+      # secrets (Settings > Secrets and variables > Actions, at the org
+      # level), scoped to all repositories. Every repo in Kallwik —
+      # including newly onboarded ones — automatically has access to
+      # both secrets with zero manual setup per repo.

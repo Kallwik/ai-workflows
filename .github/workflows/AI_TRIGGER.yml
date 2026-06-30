@@ -18,15 +18,13 @@ jobs:
 
     steps:
       - name: Download logs
-        env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           set -e
           RUN_ID=${{ github.event.workflow_run.id }}
           REPO=${{ github.event.workflow_run.repository.full_name }}
           curl --http1.1 -L \
             --retry 3 \
-            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Authorization: Bearer $secrets.PAT_TOKEN" \
             "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/logs" \
             -o logs.zip
 

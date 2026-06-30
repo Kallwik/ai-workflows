@@ -18,8 +18,6 @@ on:
     secrets:
       PAT_TOKEN:
         required: true
-      GCP_SA_KEY:
-        required: true
 
 permissions:
   contents: write
@@ -70,11 +68,11 @@ jobs:
 
       - name: Debug GCP key
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          PAT_TOKEN : ${{ secrets.PAT_TOKEN  }}
         run: |
-          echo "GCP_SA_KEY length: ${#GCP_SA_KEY}"
-          if [ -z "$GCP_SA_KEY" ]; then
-            echo "ERROR: GCP_SA_KEY is empty or not set."
+          echo "PAT_TOKEN  length: ${#PAT_TOKEN }"
+          if [ -z "$PAT_TOKEN " ]; then
+            echo "ERROR: PAT_TOKEN  is empty or not set."
             echo "Add it as a repository secret in this repo: Settings > Secrets and variables > Actions"
             echo "Value must be the full JSON content of the GCP service account key."
             exit 1
@@ -83,7 +81,7 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          credentials_json: ${{ secrets.PAT_TOKEN  }}
 
       - name: Configure GCP
         run: gcloud config set project gcpproject-490711

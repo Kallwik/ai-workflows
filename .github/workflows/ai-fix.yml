@@ -18,6 +18,10 @@ on:
     secrets:
       PAT_TOKEN:
         required: true
+      GCP_WIF_PROVIDER:
+        required: true
+      GCP_SERVICE_ACCOUNT:
+        required: true
 
 permissions:
   contents: write
@@ -53,10 +57,16 @@ jobs:
           fi
 
       # =========================
-      # GCP AUTH
+      # GCP AUTH (Keyless - WIF)
+      # No JSON key required.
+      # Requires one-time WIF setup in GCP console.
       # =========================
 
-
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup gcloud SDK
         uses: google-github-actions/setup-gcloud@v2

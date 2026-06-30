@@ -18,8 +18,6 @@ on:
     secrets:
       PAT_TOKEN:
         required: true
-      GCP_SA_KEY:
-        required: true
 
 permissions:
   contents: write

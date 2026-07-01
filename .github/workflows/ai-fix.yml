@@ -19,6 +19,10 @@ on:
     secrets:
       PAT_TOKEN:
         required: true
+      WIF_PROVIDER:
+        required: true
+      WIF_SERVICE_ACCOUNT:
+        required: true
 
 permissions:
   contents: write
@@ -66,6 +70,11 @@ jobs:
       # GCP AUTH (WIF)
       # =========================
 
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
       - name: Configure GCP Project
         run: gcloud config set project gcpproject-490711
@@ -94,7 +103,7 @@ jobs:
           from vertexai.preview import rag
           from vertexai.generative_models import GenerativeModel, Tool
 
-          vertexai.init(project="gcpproject-490711", location="us-central1")
+          vertexai.init(project="gcpproject-490711", location="asia-southeast1")
 
           CORPUS = "projects/gcpproject-490711/locations/asia-southeast1/ragCorpora/6917529027641081856"
 

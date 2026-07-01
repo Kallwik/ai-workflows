@@ -1,3 +1,4 @@
+```yaml
 name: AI fix pipeline
 
 on:
@@ -15,6 +16,7 @@ on:
       repo_full_name:
         required: true
         type: string
+
     secrets:
       PAT_TOKEN:
         required: true
@@ -32,8 +34,16 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # =========================
+      # CHECKOUT
+      # =========================
+
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      # =========================
+      # PREPARE AI_FIX BRANCH
+      # =========================
 
       - name: Prepare AI_FIX branch
         env:
@@ -45,6 +55,7 @@ jobs:
           BRANCH="AI_FIX"
 
           git fetch origin
+
           git checkout -B temp_branch "origin/${SOURCE_BRANCH}"
 
           if git ls-remote --exit-code --heads origin $BRANCH; then
@@ -57,12 +68,14 @@ jobs:
           fi
 
       # =========================
-      # GCP AUTH (Keyless - WIF)
-      # No JSON key required.
-      # Requires one-time WIF setup in GCP console.
+      # GCP AUTH (WIF)
       # =========================
 
-     
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup gcloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -95,8 +108,12 @@ jobs:
           cat > analyze.py <<'PY'
           import os
           import vertexai
+
           from vertexai.preview import rag
-          from vertexai.generative_models import GenerativeModel, Tool
+          from vertexai.generative_models import (
+              GenerativeModel,
+              Tool
+          )
 
           PROJECT_ID = "gcpproject-490711"
           LOCATION = "asia-southeast1"
@@ -124,14 +141,19 @@ jobs:
               )
           )
 
-          tool = Tool.from_retrieval(retrieval=retrieval)
+          tool = Tool.from_retrieval(
+              retrieval=retrieval
+          )
 
           model = GenerativeModel(
               "gemini-2.5-flash",
               tools=[tool]
           )
 
-          error = os.environ.get("ERROR_LOG", "")[:8000]
+          error = os.environ.get(
+              "ERROR_LOG",
+              ""
+          )[:8000]
 
           print("ERROR length:", len(error))
 
@@ -140,7 +162,8 @@ jobs:
 
           IMPORTANT:
           - You MUST use retrieved knowledge from RAG corpus
-          - The corpus contains CI workflow, parameters, and templates
+          - The corpus contains CI workflow, parameters,
+            and templates
           - Mention what you retrieved and how it helped
 
           ERROR:
@@ -223,7 +246,9 @@ jobs:
               )
           )
 
-          tool = Tool.from_retrieval(retrieval=retrieval)
+          tool = Tool.from_retrieval(
+              retrieval=retrieval
+          )
 
           model = GenerativeModel(
               "gemini-2.5-flash",
@@ -238,8 +263,8 @@ jobs:
           ======================================
 
           Before generating the fix:
-          1. Retrieve and read "rules.txt" from RAG corpus
-          2. Treat rules.txt as strict schema validation
+          1. Retrieve and read rules.txt
+          2. Treat rules.txt as strict validation
           3. Apply ALL rules from rules.txt
 
           ======================================
@@ -299,12 +324,12 @@ jobs:
           print(text)
 
           wf = re.search(
-              r"---FIXED_WORKFLOW---([\s\S]+?)---END_FIXED_WORKFLOW---",
+              r"---FIXED_WORKFLOW---([\\s\\S]+?)---END_FIXED_WORKFLOW---",
               text
           )
 
           msg = re.search(
-              r"---COMMIT_MESSAGE---([\s\S]+?)---END_COMMIT_MESSAGE---",
+              r"---COMMIT_MESSAGE---([\\s\\S]+?)---END_COMMIT_MESSAGE---",
               text
           )
 
@@ -345,3 +370,4 @@ jobs:
           git commit -F commit.txt
 
           git push origin AI_FIX --force
+```

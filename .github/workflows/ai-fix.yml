@@ -69,9 +69,6 @@ jobs:
       # =========================
       # GCP AUTH (WIF)
       # =========================
-      # =========================
-      # GCP AUTH (WIF)
-      # =========================
 
       - name: Authenticate to GCP (WIF)
         uses: google-github-actions/auth@v2
@@ -81,7 +78,6 @@ jobs:
 
       - name: Configure GCP Project
         run: gcloud config set project gcpproject-490711
-
 
       # =========================
       # PYTHON
@@ -190,7 +186,7 @@ jobs:
           )
 
           PROJECT_ID = "gcpproject-490711"
-          LOCATION = "us-central1"
+          LOCATION = "asia-southeast1"
 
           vertexai.init(
               project=PROJECT_ID,

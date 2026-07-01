@@ -19,6 +19,10 @@ on:
     secrets:
       PAT_TOKEN:
         required: true
+      WIF_PROVIDER:
+        required: true
+      WIF_SERVICE_ACCOUNT:
+        required: true
 
 permissions:
   contents: write
@@ -65,6 +69,18 @@ jobs:
       # =========================
       # GCP AUTH (WIF)
       # =========================
+      # =========================
+      # GCP AUTH (WIF)
+      # =========================
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Configure GCP Project
+        run: gcloud config set project gcpproject-490711
 
       - name: Configure GCP Project
         run: gcloud config set project gcpproject-490711

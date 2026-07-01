@@ -1,4 +1,4 @@
-```yaml
+
 name: AI fix pipeline
 
 on:
@@ -370,4 +370,4 @@ jobs:
           git commit -F commit.txt
 
           git push origin AI_FIX --force
-```
+

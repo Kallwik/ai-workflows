@@ -45,5 +45,5 @@ jobs:
       repo_full_name: ${{ github.repository }}
     secrets:
       PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-      WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
-      WIF_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}

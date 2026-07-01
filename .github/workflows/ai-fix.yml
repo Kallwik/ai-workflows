@@ -99,10 +99,10 @@ jobs:
           CORPUS = "projects/gcpproject-490711/locations/asia-southeast1/ragCorpora/6917529027641081856"
 
           def fet_model(tool):
-             try:
-                return GenerativeModel("gemini-2.5-flash", tools=[tools])
-             expect: 
-                return GenerativeModel("gemini-1.5-pro", tools=[tool])
+                  try:
+                      return GenerativeModel("gemini-2.5-flash", tools=[tool])
+                  except Exception:
+                      return GenerativeModel("gemini-1.5-pro", tools=[tool])
           
           retrieval = rag.Retrieval(
               source=rag.VertexRagStore(

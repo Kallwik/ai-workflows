@@ -82,8 +82,6 @@ jobs:
       - name: Configure GCP Project
         run: gcloud config set project gcpproject-490711
 
-      - name: Configure GCP Project
-        run: gcloud config set project gcpproject-490711
 
       # =========================
       # PYTHON

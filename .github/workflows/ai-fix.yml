@@ -15,6 +15,11 @@ on:
       repo_full_name:
         required: true
         type: string
+      fix_branch_name:
+        description: "Branch the AI fix will be committed and pushed to"
+        required: false
+        type: string
+        default: "AI_FIX"
 
     secrets:
       PAT_TOKEN:
@@ -43,30 +48,36 @@ jobs:
           persist-credentials: false
 
       # =========================
-      # PREPARE AI_FIX BRANCH
+      # PREPARE FIX BRANCH
       # =========================
 
-      - name: Prepare AI_FIX branch
+      - name: Prepare fix branch
         env:
           SOURCE_BRANCH: ${{ inputs.branch_name }}
+          FIX_BRANCH: ${{ inputs.fix_branch_name }}
         run: |
+          set -e
           git config user.name "AI_Bot"
           git config user.email "ai@bot.com"
 
-          BRANCH="AI_FIX"
+          BRANCH="${FIX_BRANCH:-AI_FIX}"
+          echo "Using fix branch: $BRANCH"
 
           git fetch origin
 
           git checkout -B temp_branch "origin/${SOURCE_BRANCH}"
 
-          if git ls-remote --exit-code --heads origin $BRANCH; then
-            git checkout $BRANCH
-            git pull origin $BRANCH
+          if git ls-remote --exit-code --heads origin "$BRANCH"; then
+            git checkout "$BRANCH"
+            git pull origin "$BRANCH"
             git merge temp_branch || echo "merge conflict ignored"
           else
-            git checkout -b $BRANCH temp_branch
-            echo "Created AI_FIX locally"
+            git checkout -b "$BRANCH" temp_branch
+            echo "Created $BRANCH locally"
           fi
+
+          # persist for later steps
+          echo "FIX_BRANCH=$BRANCH" >> "$GITHUB_ENV"
 
       # =========================
       # GCP AUTH (WIF)
@@ -344,6 +355,7 @@ jobs:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
           REPO: ${{ inputs.repo_full_name }}
         run: |
+          set -e
           git remote set-url origin \
             "https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git"
 
@@ -353,4 +365,4 @@ jobs:
 
           git commit -F commit.txt
 
-          git push origin AI_FIX --force
+          git push origin "$FIX_BRANCH" --force

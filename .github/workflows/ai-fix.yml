@@ -39,6 +39,8 @@ jobs:
 
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # =========================
       # PREPARE AI_FIX BRANCH

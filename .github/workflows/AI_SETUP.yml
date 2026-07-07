@@ -203,7 +203,7 @@ jobs:
           git checkout "$BRANCH"
 
       - name: Install YAML tooling
-        run: pip install "ruamel.yaml>=0.18" --break-system-packages
+        run: pip install "ruamel.yaml>=0.18"
 
       - name: Inject AI-fix notify jobs into CI workflow on target branch
         env:

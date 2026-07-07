@@ -4,8 +4,6 @@ on:
     workflows: ["__CI_WORKFLOW_NAME__"]
     types:
       - completed
-    branches:
-      - "__TARGET_BRANCH__"
 permissions:
   contents: write
   id-token: write

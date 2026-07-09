@@ -33,7 +33,7 @@ permissions:
   contents: write
 jobs:
   setup:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04-arm
     steps:
       - name: Checkout central repo
         uses: actions/checkout@v4

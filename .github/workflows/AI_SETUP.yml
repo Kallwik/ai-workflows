@@ -78,17 +78,33 @@ jobs:
             exit 1
           fi
           echo "Confirmed: '$BRANCH' exists."
+        - name: Get repository default branch
+  id: defaultbranch
+  env:
+    PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+  run: |
+    set -e
 
-      - name: Get repository default branch
-        id: defaultbranch
-        env:
-          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: |
-          set -e
-          REPO="Kallwik/${{ github.event.inputs.repo_name }}"
-          DEFAULT_BRANCH=$(curl -s -H "Authorization: Bearer ${PAT_TOKEN}" \
-            "https://api.github.com/repos/${REPO}" | jq -r '.default_branch')
+    REPO="Kallwik/${{ github.event.inputs.repo_name }}"
 
+    RESPONSE=$(curl -s \
+      -H "Authorization: Bearer ${PAT_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/${REPO}")
+
+    echo "$RESPONSE"
+
+    DEFAULT_BRANCH=$(echo "$RESPONSE" | jq -r '.default_branch')
+
+    if [ -z "$DEFAULT_BRANCH" ] || [ "$DEFAULT_BRANCH" = "null" ]; then
+      echo "::error::Could not determine default branch for $REPO"
+      exit 1
+    fi
+
+    echo "Default branch is $DEFAULT_BRANCH"
+
+    # THIS LINE IS THE IMPORTANT ONE
+    echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
       - name: Clone target repo
         env:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}

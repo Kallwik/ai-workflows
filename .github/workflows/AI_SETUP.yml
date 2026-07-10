@@ -78,145 +78,146 @@ jobs:
             exit 1
           fi
           echo "Confirmed: '$BRANCH' exists."
-        - name: Get repository default branch
-  id: defaultbranch
-  env:
-    PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-  run: |
-    set -e
+      
+          - name: Get repository default branch
+              id: defaultbranch
+            env:
+              PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+            run: |
+              set -e
 
-    REPO="Kallwik/${{ github.event.inputs.repo_name }}"
+              REPO="Kallwik/${{ github.event.inputs.repo_name }}"
 
-    RESPONSE=$(curl -s \
-      -H "Authorization: Bearer ${PAT_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      "https://api.github.com/repos/${REPO}")
+              RESPONSE=$(curl -s \
+                -H "Authorization: Bearer ${PAT_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/${REPO}")
 
-    echo "$RESPONSE"
+              echo "$RESPONSE"
 
-    DEFAULT_BRANCH=$(echo "$RESPONSE" | jq -r '.default_branch')
+              DEFAULT_BRANCH=$(echo "$RESPONSE" | jq -r '.default_branch')
 
-    if [ -z "$DEFAULT_BRANCH" ] || [ "$DEFAULT_BRANCH" = "null" ]; then
-      echo "::error::Could not determine default branch for $REPO"
-      exit 1
-    fi
+              if [ -z "$DEFAULT_BRANCH" ] || [ "$DEFAULT_BRANCH" = "null" ]; then
+                echo "::error::Could not determine default branch for $REPO"
+                exit 1
+              fi
 
-    echo "Default branch is $DEFAULT_BRANCH"
+              echo "Default branch is $DEFAULT_BRANCH"
 
-    # THIS LINE IS THE IMPORTANT ONE
-    echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
-      - name: Clone target repo
-        env:
-          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: |
-          set -e
-          REPO="Kallwik/${{ github.event.inputs.repo_name }}"
-          echo "Cloning repository: $REPO"
-          git clone \
-            "https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git" \
-            repo
-
-      - name: Verify template file
-        run: |
-          echo "Available workflow templates:"
-          ls -la central/.github/workflows
-
-      - name: Copy template
-        run: |
-          set -e
-          mkdir -p repo/.github/workflows
-          cp \
-            central/.github/workflows/AI_TRIGGER.yml \
-            repo/.github/workflows/ai-trigger.yml
-
-      - name: Replace placeholders
-        env:
-          TARGET_BRANCH: ${{ steps.inputs.outputs.target_branch }}
-          FIX_BRANCH_NAME: ${{ steps.inputs.outputs.fix_branch_name }}
-        run: |
-          set -e
-          FILE="repo/.github/workflows/ai-trigger.yml"
-          CI_NAME="${{ github.event.inputs.ci_workflow_name }}"
-          CI_FILE="${{ github.event.inputs.ci_file_name }}"
-
-          echo "Workflow Name: $CI_NAME"
-          echo "CI File Name: $CI_FILE"
-          echo "Target Branch: $TARGET_BRANCH"
-          echo "Fix Branch Name: $FIX_BRANCH_NAME"
-
-          SAFE_NAME=$(printf '%s\n' "$CI_NAME" | sed 's/[\/&]/\\&/g')
-          SAFE_FILE=$(printf '%s\n' "$CI_FILE" | sed 's/[\/&]/\\&/g')
-          SAFE_TARGET_BRANCH=$(printf '%s\n' "$TARGET_BRANCH" | sed 's/[\/&]/\\&/g')
-          SAFE_FIX_BRANCH=$(printf '%s\n' "$FIX_BRANCH_NAME" | sed 's/[\/&]/\\&/g')
-
-          sed -i "s/__CI_WORKFLOW_NAME__/$SAFE_NAME/g" "$FILE"
-          sed -i "s/__CI_FILE_NAME__/$SAFE_FILE/g" "$FILE"
-          sed -i "s/__TARGET_BRANCH__/$SAFE_TARGET_BRANCH/g" "$FILE"
-          sed -i "s/__FIX_BRANCH_NAME__/$SAFE_FIX_BRANCH/g" "$FILE"
-
-      - name: Verify generated workflow
-        run: |
-          echo "===================================="
-          cat repo/.github/workflows/ai-trigger.yml
-          echo "===================================="
-
-      - name: Commit and push workflow to default branch
-        env:
-          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-          DEFAULT_BRANCH: ${{ steps.defaultbranch.outputs.default_branch }}
-        run: |
-          set -e
-          cd repo
-          git config user.name "AI-Bot"
-          git config user.email "ai@bot.com"
-          git add .github/workflows/ai-trigger.yml
-          git commit -m "Add AI Trigger Workflow (watching: ${{ steps.inputs.outputs.target_branch }})" || echo "No changes to commit"
-          git push \
-            "https://x-access-token:${PAT_TOKEN}@github.com/Kallwik/${{ github.event.inputs.repo_name }}.git" \
-            "HEAD:${DEFAULT_BRANCH}"
-
-      - name: Add temp.txt marker to target branch
-        env:
-          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: |
-          set -e
-          REPO="Kallwik/${{ github.event.inputs.repo_name }}"
-          BRANCH="${{ steps.inputs.outputs.target_branch }}"
-          rm -rf repo-branch
-          git clone \
-            "https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git" \
-            repo-branch
-          cd repo-branch
-          git checkout "$BRANCH"
-          echo "AI trigger installed on default branch, watching: ${BRANCH}" > temp.txt
-          git config user.name "AI-Bot"
-          git config user.email "ai@bot.com"
-          git add temp.txt
-          git commit -m "Add temp.txt marker on ${BRANCH}" || echo "No changes to commit"
-          git push origin "$BRANCH"
-
-      # NOTE ON BRANCHING:
-      # ai-trigger.yml is always installed on the repo's DEFAULT branch
-      # (resolved dynamically above, not hardcoded) because GitHub will
-      # not recognize a workflow_run trigger unless the file defining it
-      # lives on the default branch -- a copy on any other branch is
-      # simply invisible to the event system. What target_branch actually
-      # controls is (a) which branch's CI this trigger reacts to, via
-      # the branches: filter baked into ai-trigger.yml, and (b) which
-      # branch AI_FIX is created from. Re-running this workflow with a
-      # different target_branch re-installs ai-trigger.yml and overwrites
-      # the previous scope -- one repo currently supports one watched
-      # branch at a time.
-      #
-      # temp.txt on target_branch is a plain marker file only -- it has
-      # no functional role in triggering anything and is not a
-      # workflow. It exists purely so the target branch has a visible
-      # sign that it's been onboarded.
-      #
-      # This workflow itself needs a PAT_TOKEN repository secret in
-      # ai-workflows to clone/push to target repos. Each onboarded repo
-      # (e.g. Test-repo) separately needs its own PAT_TOKEN,
-      # GCP_WIF_PROVIDER, and GCP_SERVICE_ACCOUNT secrets added manually —
-      # Settings > Secrets and variables > Actions — since those are
-      # consumed by ai-trigger.yml and ai-fix.yml when this repo's CI
-      # fails, not by this setup workflow.
+              # THIS LINE IS THE IMPORTANT ONE
+          echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+            - name: Clone target repo
+              env:
+                PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+              run: |
+                set -e
+                REPO="Kallwik/${{ github.event.inputs.repo_name }}"
+                echo "Cloning repository: $REPO"
+                git clone \
+                  "https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git" \
+                  repo
+      
+            - name: Verify template file
+              run: |
+                echo "Available workflow templates:"
+                ls -la central/.github/workflows
+      
+            - name: Copy template
+              run: |
+                set -e
+                mkdir -p repo/.github/workflows
+                cp \
+                  central/.github/workflows/AI_TRIGGER.yml \
+                  repo/.github/workflows/ai-trigger.yml
+      
+            - name: Replace placeholders
+              env:
+                TARGET_BRANCH: ${{ steps.inputs.outputs.target_branch }}
+                FIX_BRANCH_NAME: ${{ steps.inputs.outputs.fix_branch_name }}
+              run: |
+                set -e
+                FILE="repo/.github/workflows/ai-trigger.yml"
+                CI_NAME="${{ github.event.inputs.ci_workflow_name }}"
+                CI_FILE="${{ github.event.inputs.ci_file_name }}"
+      
+                echo "Workflow Name: $CI_NAME"
+                echo "CI File Name: $CI_FILE"
+                echo "Target Branch: $TARGET_BRANCH"
+                echo "Fix Branch Name: $FIX_BRANCH_NAME"
+      
+                SAFE_NAME=$(printf '%s\n' "$CI_NAME" | sed 's/[\/&]/\\&/g')
+                SAFE_FILE=$(printf '%s\n' "$CI_FILE" | sed 's/[\/&]/\\&/g')
+                SAFE_TARGET_BRANCH=$(printf '%s\n' "$TARGET_BRANCH" | sed 's/[\/&]/\\&/g')
+                SAFE_FIX_BRANCH=$(printf '%s\n' "$FIX_BRANCH_NAME" | sed 's/[\/&]/\\&/g')
+      
+                sed -i "s/__CI_WORKFLOW_NAME__/$SAFE_NAME/g" "$FILE"
+                sed -i "s/__CI_FILE_NAME__/$SAFE_FILE/g" "$FILE"
+                sed -i "s/__TARGET_BRANCH__/$SAFE_TARGET_BRANCH/g" "$FILE"
+                sed -i "s/__FIX_BRANCH_NAME__/$SAFE_FIX_BRANCH/g" "$FILE"
+      
+            - name: Verify generated workflow
+              run: |
+                echo "===================================="
+                cat repo/.github/workflows/ai-trigger.yml
+                echo "===================================="
+      
+            - name: Commit and push workflow to default branch
+              env:
+                PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+                DEFAULT_BRANCH: ${{ steps.defaultbranch.outputs.default_branch }}
+              run: |
+                set -e
+                cd repo
+                git config user.name "AI-Bot"
+                git config user.email "ai@bot.com"
+                git add .github/workflows/ai-trigger.yml
+                git commit -m "Add AI Trigger Workflow (watching: ${{ steps.inputs.outputs.target_branch }})" || echo "No changes to commit"
+                git push \
+                  "https://x-access-token:${PAT_TOKEN}@github.com/Kallwik/${{ github.event.inputs.repo_name }}.git" \
+                  "HEAD:${DEFAULT_BRANCH}"
+      
+            - name: Add temp.txt marker to target branch
+              env:
+                PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+              run: |
+                set -e
+                REPO="Kallwik/${{ github.event.inputs.repo_name }}"
+                BRANCH="${{ steps.inputs.outputs.target_branch }}"
+                rm -rf repo-branch
+                git clone \
+                  "https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git" \
+                  repo-branch
+                cd repo-branch
+                git checkout "$BRANCH"
+                echo "AI trigger installed on default branch, watching: ${BRANCH}" > temp.txt
+                git config user.name "AI-Bot"
+                git config user.email "ai@bot.com"
+                git add temp.txt
+                git commit -m "Add temp.txt marker on ${BRANCH}" || echo "No changes to commit"
+                git push origin "$BRANCH"
+      
+            # NOTE ON BRANCHING:
+            # ai-trigger.yml is always installed on the repo's DEFAULT branch
+            # (resolved dynamically above, not hardcoded) because GitHub will
+            # not recognize a workflow_run trigger unless the file defining it
+            # lives on the default branch -- a copy on any other branch is
+            # simply invisible to the event system. What target_branch actually
+            # controls is (a) which branch's CI this trigger reacts to, via
+            # the branches: filter baked into ai-trigger.yml, and (b) which
+            # branch AI_FIX is created from. Re-running this workflow with a
+            # different target_branch re-installs ai-trigger.yml and overwrites
+            # the previous scope -- one repo currently supports one watched
+            # branch at a time.
+            #
+            # temp.txt on target_branch is a plain marker file only -- it has
+            # no functional role in triggering anything and is not a
+            # workflow. It exists purely so the target branch has a visible
+            # sign that it's been onboarded.
+            #
+            # This workflow itself needs a PAT_TOKEN repository secret in
+            # ai-workflows to clone/push to target repos. Each onboarded repo
+            # (e.g. Test-repo) separately needs its own PAT_TOKEN,
+            # GCP_WIF_PROVIDER, and GCP_SERVICE_ACCOUNT secrets added manually —
+            # Settings > Secrets and variables > Actions — since those are
+            # consumed by ai-trigger.yml and ai-fix.yml when this repo's CI
+            # fails, not by this setup workflow.

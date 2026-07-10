@@ -106,6 +106,15 @@ jobs:
             exit 1
           fi
 
+          # Detect hidden whitespace/newlines baked into the secret itself
+          # (common when a token is copy-pasted with a trailing newline into
+          # the GitHub secret field) -- this changes the string GitHub sees
+          # without being visible anywhere in the UI or in masked logs.
+          TRIMMED_LEN=$(printf '%s' "$PAT_TOKEN" | tr -d ' \t\r\n' | wc -c)
+          if [ "$TRIMMED_LEN" != "${#PAT_TOKEN}" ]; then
+            echo "::warning::PAT_TOKEN appears to contain whitespace/newline characters (raw length ${#PAT_TOKEN}, trimmed length $TRIMMED_LEN). This likely corrupts the credential. Re-save the secret making sure no trailing newline is included."
+          fi
+
           # Independently verify the token identifies a valid GitHub identity
           # at all, decoupled from repo access -- this isolates "token is
           # garbage/expired" from "token is fine but lacks access to this repo".

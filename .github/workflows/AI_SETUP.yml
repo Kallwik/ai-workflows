@@ -88,12 +88,6 @@ jobs:
           REPO="Kallwik/${{ github.event.inputs.repo_name }}"
           DEFAULT_BRANCH=$(curl -s -H "Authorization: Bearer ${PAT_TOKEN}" \
             "https://api.github.com/repos/${REPO}" | jq -r '.default_branch')
-          if [ -z "$DEFAULT_BRANCH" ] || [ "$DEFAULT_BRANCH" = "null" ]; then
-            echo "::error::Could not determine default branch for $REPO"
-            exit 1
-          fi
-          echo "Default branch for $REPO is: $DEFAULT_BRANCH"
-          echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Clone target repo
         env:

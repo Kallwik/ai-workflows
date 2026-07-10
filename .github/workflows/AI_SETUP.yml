@@ -95,6 +95,28 @@ jobs:
           echo "repo_name input (clean): [$CLEAN_REPO_NAME]"
           echo "Resolved REPO: $REPO"
 
+          # Check whether the PAT_TOKEN secret actually resolved to a value.
+          # A misspelled secret name or wrong scope (e.g. an org secret not
+          # shared with this repo) silently resolves to an EMPTY string here
+          # rather than failing the workflow -- and an empty token produces
+          # the exact same "Bad credentials" 401 as a genuinely invalid one.
+          echo "PAT_TOKEN length: ${#PAT_TOKEN} characters"
+          if [ -z "$PAT_TOKEN" ]; then
+            echo "::error::PAT_TOKEN secret is EMPTY. It is not set on this repo, or the secret name doesn't match exactly (case-sensitive), or it's an org secret not shared with ai-workflows. Check Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          # Independently verify the token identifies a valid GitHub identity
+          # at all, decoupled from repo access -- this isolates "token is
+          # garbage/expired" from "token is fine but lacks access to this repo".
+          WHOAMI_CODE=$(curl -s -o /tmp/gh_whoami.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${PAT_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/user")
+          echo "Token identity check HTTP status: $WHOAMI_CODE"
+          cat /tmp/gh_whoami.json
+          echo ""
+
           HTTP_CODE=$(curl -s -o /tmp/gh_response.json -w "%{http_code}" \
             -H "Authorization: Bearer ${PAT_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
